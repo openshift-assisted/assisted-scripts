@@ -1,0 +1,63 @@
+#!/usr/bin/env python3
+"""
+Usage:
+    ci_histogram [-e [-p num]] [-j job_regex] [-t age] <search_regex>
+    ci_histogram --help
+
+Options:
+    -e              Exhaustive date extractor. Get date from PROW's started.json file
+    -p num          Number of concurrent requests to get prow files (only applies with -e) [default: 10]
+    -j job_regex    Search only jobs specified by this regex [default: .*e2e-metal-assisted.*|.*ai-operator.*]
+    -t age          Timeframe to look backwards for logs [default: 500h]
+    search_regex    Search this text in build-log
+"""
+
+import requests
+from collections import Counter
+from urllib.parse import quote
+from datetime import datetime
+from docopt import docopt
+from multiprocessing.pool import ThreadPool
+
+
+config={}
+
+def get_date_from_prow(job_url):
+    gs_url="https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/{}/started.json"
+    job_path="/".join(job_url.split('/')[5:])
+    j = requests.get(gs_url.format(job_path))
+    j.raise_for_status()
+    job_date = datetime.fromtimestamp(j.json()["timestamp"]).strftime('%Y-%m-%d')
+    return(job_date)
+
+
+def print_histogram():
+    search = quote(config["failure_regex"])
+    r = requests.get(f'https://search.ci.openshift.org/search?maxAge={config["max_age"]}&type=build-log&context=0&name={config["job_regex"]}&search={search}')
+    r.raise_for_status()
+    c = Counter()
+    if config["exhaustive"]:
+        job_urls=r.json().keys()
+        job_dates = ThreadPool(config["num_parallel_requests"]).imap_unordered(get_date_from_prow,job_urls)
+        for job_date in job_dates:
+            c.update([job_date])
+    else:
+        for i in r.json().items():
+            job_date = i[1][config["failure_regex"]][0]["context"][0].split(" ")[0]
+            c.update([job_date])
+    for date, count in sorted(c.items()):
+        print(f"{date}\t{count}")
+
+
+def parse_opts():
+    opts = docopt(__doc__, version='0.1', help=True)
+    config["failure_regex"] = opts['<search_regex>']
+    config["job_regex"] = opts['-j']
+    config["exhaustive"] = opts['-e']
+    config["num_parallel_requests"] = int(opts['-p'])
+    config["max_age"] = opts['-t']
+
+
+if __name__ == "__main__":
+    parse_opts()
+    print_histogram()
