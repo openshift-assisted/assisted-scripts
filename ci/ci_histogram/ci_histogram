@@ -8,7 +8,7 @@ Options:
     -e              Exhaustive date extractor. Get date from PROW's started.json file
     -p num          Number of concurrent requests to get prow files (only applies with -e) [default: 10]
     -j job_regex    Search only jobs specified by this regex [default: .*e2e-metal-assisted.*|.*ai-operator.*]
-    -t age          Timeframe to look backwards for logs [default: 500h]
+    -t age          Timeframe to look backwards for logs [default: 504h]
     search_regex    Search this text in build-log
 """
 
