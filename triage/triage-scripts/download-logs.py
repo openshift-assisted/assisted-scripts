@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
 
-# This script takes a URL of a directory in the NGINX-file browser format (https://github.com/mohamnag/nginx-file-browser),
-# and downloads its contents into a subdirectory inside the working directory. A name of the destination directory can be
-# either given as the second argument (after the URL), or will be derived from the last part of the URL. Files in the known
-# archive formats will be unpacked. The subdirectory will be relative to the working directory.
-#
-# Example: http://logs.example.com/#/2022-03-30_20:14:19_fab47716-04e6-401b-8b89-e414d030a298/ will be converted into
-# http://logs.example.com/files/2022-03-30_20:14:19_fab47716-04e6-401b-8b89-e414d030a298/, which returns a JSON list of files
-# and subdirectories. The files/directories will be recursively downloaded into "2022-03-30_20-14-19_fab47716-04e6-401b-8b89-e414d030a298".
+"""
+This script takes a URL of a directory in the NGINX-file browser format (https://github.com/mohamnag/nginx-file-browser),
+and downloads its contents into a subdirectory inside the working directory. A name of the destination directory can be
+either given as the second argument (after the URL), or will be derived from the last part of the URL. Files in the known
+archive formats will be unpacked. The subdirectory will be relative to the working directory.
+
+Example: http://logs.example.com/#/2022-03-30_20:14:19_fab47716-04e6-401b-8b89-e414d030a298/ will be converted into
+http://logs.example.com/files/2022-03-30_20:14:19_fab47716-04e6-401b-8b89-e414d030a298/, which returns a JSON list of files
+and subdirectories. The files/directories will be recursively downloaded into "2022-03-30_20-14-19_fab47716-04e6-401b-8b89-e414d030a298".
+"""
 
 import shutil
 import sys
