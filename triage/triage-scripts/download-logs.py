@@ -37,6 +37,7 @@ def download_dir(base_url, dest):
 
 def download_file(base_url, dest):
     r = requests.get(base_url, stream=True)
+    r.raise_for_status()
     with open(dest, 'wb') as fd:
         for chunk in r.iter_content(chunk_size=128):
             fd.write(chunk)
