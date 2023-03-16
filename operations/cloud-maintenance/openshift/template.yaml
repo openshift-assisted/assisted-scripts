@@ -1,0 +1,113 @@
+---
+apiVersion: template.openshift.io/v1
+kind: Template
+metadata:
+  name: assisted-scripts
+parameters:
+- name: S3_CLEANER_TTL_AFTER_FINISHED
+  value: "3600"
+- name: S3_CLEANER_CRON_SUSPEND
+  value: "false"
+- name: S3_CLEANER_CRON_TIME
+  value: "0 2 * * *"
+- name: S3_CLEANER_MEMORY_LIMIT
+  value: "2Gi"
+- name: S3_CLEANER_CPU_LIMIT
+  value: "100Mi"
+- name: S3_CLEANER_MEMORY_REQUEST
+  value: "1"
+- name: S3_CLEANER_CPU_REQUEST
+  value: "1"
+- name: AWS_S3_SECRET_NAME
+  value: 'assisted-installer-s3'
+- name: IMAGE_PULL_POLICY
+  value: Always
+- name: IMAGE_FULL_NAME
+  value: quay.io/edge-infrastructure/aws-cli:2.11.3
+- name: OBJECTS_TO_BE_DELETED
+  required: true
+- name: S3_CLEANER_EXTRA_PARAMS
+  value: "--dryrun"
+objects:
+- apiVersion: batch/v1
+  kind: CronJob
+  metadata:
+    name: aws-s3-cleaner
+  spec:
+    suspend: ${{S3_CLEANER_CRON_SUSPEND}}
+    schedule: "${S3_CLEANER_CRON_TIME}"
+    jobTemplate:
+      spec:
+        ttlSecondsAfterFinished: ${{S3_CLEANER_TTL_AFTER_FINISHED}}
+        template:
+          spec:
+            volumes:
+            - name: scripts
+              configMap:
+                name: aws-scripts
+                defaultMode: 0755
+            - name: data
+              configMap:
+                name: aws-scripts-data
+            containers:
+            - name: aws-s3-cleaner
+              image: ${IMAGE_FULL_NAME}
+              imagePullPolicy: ${IMAGE_PULL_POLICY}
+              volumeMounts:
+              - name: data
+                mountPath: /data/
+              - name: scripts
+                mountPath: /scripts/delete_aws_s3_objects
+                subPath: delete_aws_s3_objects
+              resources:
+                limits:
+                  memory: ${S3_CLEANER_MEMORY_LIMIT}
+                  cpu: ${S3_CLEANER_CPU_LIMIT}
+                requests:
+                  memory: ${S3_CLEANER_MEMORY_REQUEST}
+                  cpu: ${S3_CLEANER_CPU_REQUEST}
+              command:
+              - /scripts/delete_aws_s3_objects
+              env:
+              - name: LOGLEVEL
+                value: "${S3_CLEANER_LOGLEVEL}"
+              - name: AWS_S3_BUCKET
+                valueFrom:
+                  secretKeyRef:
+                    key: bucket
+                    name: ${AWS_S3_SECRET_NAME}
+              - name: AWS_S3_ENDPOINT
+                valueFrom:
+                  secretKeyRef:
+                    key: endpoint
+                    name: ${AWS_S3_SECRET_NAME}
+              - name: AWS_ACCESS_KEY_ID
+                valueFrom:
+                  secretKeyRef:
+                    key: aws_access_key_id
+                    name: ${AWS_S3_SECRET_NAME}
+              - name: AWS_SECRET_ACCESS_KEY
+                valueFrom:
+                  secretKeyRef:
+                    key: aws_secret_access_key
+                    name: ${AWS_S3_SECRET_NAME}
+            restartPolicy: OnFailure
+- apiVersion: v1
+  kind: ConfigMap
+  metadata:
+    name: aws-scripts-data
+  data:
+    objects_to_be_deleted: |
+      ${OBJECTS_TO_BE_DELETED}
+- apiVersion: v1
+  kind: ConfigMap
+  metadata:
+    name: aws-scripts
+  data:
+    delete_aws_s3_objects: |
+      #!/bin/bash -e
+      echo "Reading patterns..."
+      for pattern in $(cat /data/objects_to_be_deleted); do
+        target=s3://${AWS_S3_BUCKET}/${pattern}
+        aws s3 rm ${S3_CLEANER_EXTRA_PARAMS} --recursive "${target}"
+      done
