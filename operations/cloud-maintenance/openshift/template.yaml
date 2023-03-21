@@ -7,16 +7,33 @@ parameters:
 - name: S3_CLEANER_TTL_AFTER_FINISHED
   value: "3600"
 - name: S3_CLEANER_CRON_SUSPEND
-  value: "false"
+  value: "true"
 - name: S3_CLEANER_CRON_TIME
   value: "0 2 * * *"
 - name: S3_CLEANER_MEMORY_LIMIT
   value: "2Gi"
 - name: S3_CLEANER_CPU_LIMIT
-  value: "100Mi"
+  value: "4"
 - name: S3_CLEANER_MEMORY_REQUEST
-  value: "1"
+  value: "100Mi"
 - name: S3_CLEANER_CPU_REQUEST
+  value: "1"
+- name: S3_CLEANER_EXTRA_PARAMS
+  value: "--dryrun"
+# Bootlog check
+- name: S3_BOOTLOGS_CHECK_TTL_AFTER_FINISHED
+  value: "3600"
+- name: S3_BOOTLOGS_CHECK_CRON_SUSPEND
+  value: "true"
+- name: S3_BOOTLOGS_CHECK_CRON_TIME
+  value: "0 2 * * *"
+- name: S3_BOOTLOGS_CHECK_MEMORY_LIMIT
+  value: "2Gi"
+- name: S3_BOOTLOGS_CHECK_CPU_LIMIT
+  value: "4"
+- name: S3_BOOTLOGS_CHECK_MEMORY_REQUEST
+  value: "100Mi"
+- name: S3_BOOTLOGS_CHECK_CPU_REQUEST
   value: "1"
 - name: AWS_S3_SECRET_NAME
   value: 'assisted-installer-s3'
@@ -24,8 +41,6 @@ parameters:
   value: Always
 - name: IMAGE_FULL_NAME
   value: quay.io/edge-infrastructure/aws-cli:2.11.3
-- name: S3_CLEANER_EXTRA_PARAMS
-  value: "--dryrun"
 objects:
 - apiVersion: batch/v1
   kind: CronJob
@@ -85,6 +100,64 @@ objects:
                     key: aws_secret_access_key
                     name: ${AWS_S3_SECRET_NAME}
             restartPolicy: OnFailure
+- apiVersion: batch/v1
+  kind: CronJob
+  metadata:
+    name: aws-s3-bootlogs-check
+  spec:
+    suspend: ${{S3_BOOTLOGS_CHECK_CRON_SUSPEND}}
+    schedule: "${S3_BOOTLOGS_CHECK_CRON_TIME}"
+    jobTemplate:
+      spec:
+        ttlSecondsAfterFinished: ${{S3_BOOTLOGS_CHECK_TTL_AFTER_FINISHED}}
+        template:
+          spec:
+            volumes:
+            - name: scripts
+              configMap:
+                name: aws-scripts
+                defaultMode: 0755
+            containers:
+            - name: aws-s3-bootlogs-check
+              image: ${IMAGE_FULL_NAME}
+              imagePullPolicy: ${IMAGE_PULL_POLICY}
+              volumeMounts:
+              - name: scripts
+                mountPath: /scripts/check_bootlogs
+                subPath: check_bootlogs
+              resources:
+                limits:
+                  memory: ${S3_BOOTLOGS_CHECK_MEMORY_LIMIT}
+                  cpu: ${S3_BOOTLOGS_CHECK_CPU_LIMIT}
+                requests:
+                  memory: ${S3_BOOTLOGS_CHECK_MEMORY_REQUEST}
+                  cpu: ${S3_BOOTLOGS_CHECK_CPU_REQUEST}
+              command:
+              - /scripts/check_bootlogs
+              env:
+              - name: LOGLEVEL
+                value: "${S3_BOOTLOGS_CHECK_LOGLEVEL}"
+              - name: AWS_S3_BUCKET
+                valueFrom:
+                  secretKeyRef:
+                    key: bucket
+                    name: ${AWS_S3_SECRET_NAME}
+              - name: AWS_S3_ENDPOINT
+                valueFrom:
+                  secretKeyRef:
+                    key: endpoint
+                    name: ${AWS_S3_SECRET_NAME}
+              - name: AWS_ACCESS_KEY_ID
+                valueFrom:
+                  secretKeyRef:
+                    key: aws_access_key_id
+                    name: ${AWS_S3_SECRET_NAME}
+              - name: AWS_SECRET_ACCESS_KEY
+                valueFrom:
+                  secretKeyRef:
+                    key: aws_secret_access_key
+                    name: ${AWS_S3_SECRET_NAME}
+            restartPolicy: OnFailure
 - apiVersion: v1
   kind: ConfigMap
   metadata:
@@ -101,5 +174,19 @@ objects:
               echo "Checking cluster ${cluster_id} host ${host_id} for boot logs"
               # remove boot logs, if there
               aws s3 rm ${S3_CLEANER_EXTRA_PARAMS} "s3://${AWS_S3_BUCKET}/${cluster_id}/logs/${host_id}/boot_logs.tar.gz"
+          done
+      done
+    check_bootlogs: |
+      #!/bin/bash -e
+      uuid_pattern="[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/"
+      # detect UUID-like directories to loop through clusters
+      for cluster_id in $(aws s3 ls s3://${AWS_S3_BUCKET} | grep -E "${uuid_pattern}" | awk '{ print $2 }' | sed 's/\///g'); do
+          echo "Checking cluster ${cluster_id} for boot logs"
+          # detect UUID-like directories to loop through hosts
+          for host_id in $(aws s3 ls "s3://${AWS_S3_BUCKET}/${cluster_id}/logs/" | grep -E "${uuid_pattern}" | awk '{ print $2 }' | sed 's/\///g'); do
+              echo "Checking cluster ${cluster_id} host ${host_id} for boot logs"
+              # remove boot logs, if there
+              boot_logs=$(aws s3 ls "s3://${AWS_S3_BUCKET}/${cluster_id}/logs/${host_id}/" | grep 'boot_logs.tar.gz' | wc -l)
+              [[ "${boot_logs}" -ne "0" ]] && echo "Found bootlogs at s3://${AWS_S3_BUCKET}/${cluster_id}/logs/${host_id}/"
           done
       done
