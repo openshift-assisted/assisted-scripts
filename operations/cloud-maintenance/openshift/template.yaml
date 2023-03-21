@@ -165,28 +165,21 @@ objects:
   data:
     delete_aws_s3_bootlogs: |
       #!/bin/bash -e
-      uuid_pattern="[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/"
+      uuid_pattern="[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
       # detect UUID-like directories to loop through clusters
       for cluster_id in $(aws s3 ls s3://${AWS_S3_BUCKET} | grep -E "${uuid_pattern}" | awk '{ print $2 }' | sed 's/\///g'); do
           echo "Checking cluster ${cluster_id} for boot logs"
           # detect UUID-like directories to loop through hosts
-          for host_id in $(aws s3 ls "s3://${AWS_S3_BUCKET}/${cluster_id}/logs/" | grep -E "${uuid_pattern}" | awk '{ print $2 }' | sed 's/\///g'); do
-              echo "Checking cluster ${cluster_id} host ${host_id} for boot logs"
-              # remove boot logs, if there
-              aws s3 rm ${S3_CLEANER_EXTRA_PARAMS} "s3://${AWS_S3_BUCKET}/${cluster_id}/logs/${host_id}/boot_logs.tar.gz"
+          for path in $(aws s3 ls --recursive "s3://${AWS_S3_BUCKET}/${cluster_id}/logs/" | awk '{ print $4 }' | grep -E "${uuid_pattern}/boot_logs.tar.gz"); do
+              aws s3 rm ${S3_CLEANER_EXTRA_PARAMS} "s3://${AWS_S3_BUCKET}/${path}"
           done
       done
     check_bootlogs: |
       #!/bin/bash -e
-      uuid_pattern="[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/"
+      uuid_pattern="[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
       # detect UUID-like directories to loop through clusters
       for cluster_id in $(aws s3 ls s3://${AWS_S3_BUCKET} | grep -E "${uuid_pattern}" | awk '{ print $2 }' | sed 's/\///g'); do
           echo "Checking cluster ${cluster_id} for boot logs"
           # detect UUID-like directories to loop through hosts
-          for host_id in $(aws s3 ls "s3://${AWS_S3_BUCKET}/${cluster_id}/logs/" | grep -E "${uuid_pattern}" | awk '{ print $2 }' | sed 's/\///g'); do
-              echo "Checking cluster ${cluster_id} host ${host_id} for boot logs"
-              # remove boot logs, if there
-              boot_logs=$(aws s3 ls "s3://${AWS_S3_BUCKET}/${cluster_id}/logs/${host_id}/" | grep 'boot_logs.tar.gz' | wc -l)
-              [[ "${boot_logs}" -ne "0" ]] && echo "Found bootlogs at s3://${AWS_S3_BUCKET}/${cluster_id}/logs/${host_id}/"
-          done
+          aws s3 ls --recursive "s3://${AWS_S3_BUCKET}/${cluster_id}/logs/" | awk '{ print $4 }' | grep -E "${uuid_pattern}/boot_logs.tar.gz" || true
       done
