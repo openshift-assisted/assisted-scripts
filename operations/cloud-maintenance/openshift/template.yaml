@@ -193,7 +193,7 @@ objects:
           delete_bootlogs_with_prefix $path_prefix &
       done
       wait < <(jobs -p)
-   check_bootlogs: |
+    check_bootlogs: |
       #!/bin/bash -e
       uuid_pattern="[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
       check_bootlogs_with_prefix() {
