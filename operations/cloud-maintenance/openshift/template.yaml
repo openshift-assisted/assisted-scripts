@@ -50,8 +50,8 @@ objects:
               imagePullPolicy: ${IMAGE_PULL_POLICY}
               volumeMounts:
               - name: scripts
-                mountPath: /scripts/delete_aws_s3_objects
-                subPath: delete_aws_s3_objects
+                mountPath: /scripts/delete_aws_s3_bootlogs
+                subPath: delete_aws_s3_bootlogs
               resources:
                 limits:
                   memory: ${S3_CLEANER_MEMORY_LIMIT}
