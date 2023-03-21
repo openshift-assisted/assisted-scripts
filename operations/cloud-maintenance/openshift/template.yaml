@@ -84,6 +84,8 @@ objects:
               env:
               - name: LOGLEVEL
                 value: "${S3_CLEANER_LOGLEVEL}"
+              - name: PATH_PREFIX
+                value: "${S3_CLEANER_PATH_PREFIX}"
               - name: AWS_S3_BUCKET
                 valueFrom:
                   secretKeyRef:
@@ -142,6 +144,8 @@ objects:
               env:
               - name: LOGLEVEL
                 value: "${S3_BOOTLOGS_CHECK_LOGLEVEL}"
+              - name: PATH_PREFIX
+                value: "${S3_BOOTLOGS_CHECK_PATH_PREFIX}"
               - name: AWS_S3_BUCKET
                 valueFrom:
                   secretKeyRef:
@@ -172,7 +176,7 @@ objects:
       #!/bin/bash -e
       uuid_pattern="[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
       # detect UUID-like directories to loop through clusters
-      for cluster_id in $(aws s3 ls s3://${AWS_S3_BUCKET}/${S3_CLEANER_PATH_PREFIX} | grep -E "${uuid_pattern}" | awk '{ print $2 }' | sed 's/\///g'); do
+      for cluster_id in $(aws s3 ls s3://${AWS_S3_BUCKET}/${PATH_PREFIX} | grep -E "${uuid_pattern}" | awk '{ print $2 }' | sed 's/\///g'); do
           echo "Checking cluster ${cluster_id} for boot logs"
           # detect UUID-like directories to loop through hosts
           for path in $(aws s3 ls --recursive "s3://${AWS_S3_BUCKET}/${cluster_id}/logs/" | awk '{ print $4 }' | grep -E "${uuid_pattern}/boot_logs.tar.gz"); do
@@ -183,7 +187,7 @@ objects:
       #!/bin/bash -e
       uuid_pattern="[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
       # detect UUID-like directories to loop through clusters
-      for cluster_id in $(aws s3 ls s3://${AWS_S3_BUCKET}/${S3_BOOTLOGS_CHECK_PATH_PREFIX} | grep -E "${uuid_pattern}" | awk '{ print $2 }' | sed 's/\///g'); do
+      for cluster_id in $(aws s3 ls s3://${AWS_S3_BUCKET}/${PATH_PREFIX} | grep -E "${uuid_pattern}" | awk '{ print $2 }' | sed 's/\///g'); do
           echo "Checking cluster ${cluster_id} for boot logs"
           # detect UUID-like directories to loop through hosts
           aws s3 ls --recursive "s3://${AWS_S3_BUCKET}/${cluster_id}/logs/" | awk '{ print $4 }' | grep -E "${uuid_pattern}/boot_logs.tar.gz" || true
