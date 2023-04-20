@@ -1,0 +1,36 @@
+#!/bin/bash -eu
+
+function create_cluster {
+    local cluster_name=$1
+    local pull_secret=$2
+    local jwt_token=$3
+
+    response=$(curl -sS 'https://api.integration.openshift.com/api/assisted-install/v2/clusters/' \
+                    -H 'content-type: application/json' \
+                    -H "authorization: Bearer $jwt_token" \
+                    --data-raw '{"name":"'"${cluster_name}"'","high_availability_mode":"Full","openshift_version":"4.13-multi","pull_secret":'"${pull_secret}"',"base_dns_domain":"assistedinstaller.sysdeseng.com","cpu_architecture":"ppc64le","disk_encryption":{"mode":"tpmv2","enable_on":"none"},"tags":"assisted_scripts"}' \
+                    --compressed)
+    echo $response | jq -r '.id'
+}
+
+function create_infra_env {
+    local name=$1
+    local cluster_id=$2
+    local pull_secret=$3
+    local jwt_token=$4
+
+    response=$(curl -sS 'https://api.integration.openshift.com/api/assisted-install/v2/infra-envs/' \
+                    -H "authorization: Bearer $jwt_token" \
+                    -H 'content-type: application/json' \
+                    --data-raw '{"name":"'"${name}"'","pull_secret":'"${pull_secret}"',"cluster_id":"'"${cluster_id}"'","openshift_version":"4.13-multi","cpu_architecture":"ppc64le"}' \
+                    --compressed)
+    echo $response | jq -r '.id'
+}
+
+function add_host {
+    local infra_env_id=$1
+    local secret_key=$2
+    host_id=$(uuidgen)
+    response=$(curl -sS -H "content-type: application/json" -XPOST -H "X-Secret-Key: ${PULL_SECRET_TOKEN}" "https://api.integration.openshift.com/api/assisted-install/v2/infra-envs/${infra_env_id}/hosts" --data '{"host_id":"'"${host_id}"'", "discovery_agent_version":"assisted_scripts"}')
+    echo $response | jq .id
+}
