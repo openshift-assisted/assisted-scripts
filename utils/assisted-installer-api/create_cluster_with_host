@@ -1,0 +1,18 @@
+#!/bin/bash -eu
+
+pull_secret=$(cat ${PULL_SECRET_FILE} | jq -R -s '.')
+x_secret_key=$(jq -r '.auths."cloud.openshift.com".auth' ${PULL_SECRET_FILE})
+
+prefix="assisted-scripts"
+suffix=$(echo $RANDOM | md5sum | head -c 7; echo;)
+cluster_name="${prefix}-${suffix}"
+
+jwt_token=$(ocm token)
+
+source functions
+
+cluster_id=$(create_cluster "${cluster_name}" "${pull_secret}" "${jwt_token}")
+infra_env_id=$(create_infra_env "${cluster_name}_infra-env" "${cluster_id}" "${pull_secret}" "${jwt_token}")
+host_id=$(add_host "${infra_env_id}" "${x_secret_key}")
+
+echo '{"cluster_id":"'"${cluster_id}"'","infra_env_id":"'"${infra_env_id}"'","host_id":"'"${host_id}"'"}'
