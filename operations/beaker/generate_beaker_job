@@ -1,0 +1,17 @@
+#!/bin/bash
+
+set -e
+set -o pipefail
+
+template_xml=beaker.tpl.xml
+
+read -p "Enter FQDN for the beaker machine (i.e. rdu-infra-edge-XX.infra-edge.lab.eng.rdu2.redhat.com): " machine
+read -p "Enter full RHEL version (i.e. 8.6.0): " full_version
+
+major_version=$(echo "${full_version}" | cut -d. -f1)
+
+read -p "Enter password:" password
+
+password_hash=$(openssl passwd "${password}" | sed 's|\$|\\$|g' |  sed 's|\.|\\.|g' | sed 's|/|\\/|g')
+
+sed "s/\[machine\]/${machine}/g" "${template_xml}" | sed "s/\[full_version\]/${full_version}/g" | sed "s/\[major_version\]/${major_version}/g" | sed "s/\[password_hash\]/${password_hash}/g"
