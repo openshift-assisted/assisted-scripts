@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<job retention_tag="120days">
+  <!-- replace [machine] with rdu-infra-edge-XX.infra-edge.lab.eng.rdu2.redhat.com -->
+  <!-- replace [full_version] with the desired RHEL version, e.g. 8.6.0 -->
+  <!-- replace [major_version] with the major RHEL version, e.g. 8 -->
+  <!-- replace [password_hash] with the output of: openssl passwd <password> -->
+  <whiteboard>[machine] -- RHEL-[full_version]</whiteboard>
+  <recipeSet priority="Urgent">
+    <recipe whiteboard="" role="RECIPE_MEMBERS" ks_meta="" kernel_options="" kernel_options_post="">
+      <autopick random="false"/>
+      <kickstart><![CDATA[
+
+
+%pre
+
+OSDISK=$(cd /dev/; find disk/by-path/*0:0 | tail -n 1 )
+DATADISK=$(cd /dev/; find disk/by-path/*1:0 | tail -n 1 )
+
+# If the above doesn't work, try the following inseated
+# OSDISK=$(cd /dev/; find disk/by-path/*:1:0 | tail -n 1 )
+# DATADISK=$(cd /dev/; find disk/by-path/*:0:0 | tail -n 1 )
+
+cat >> /tmp/DISK2USE <<EOF
+
+zerombr
+clearpart --all --initlabel
+
+bootloader --append=" crashkernel=auto" --location=mbr --boot-drive=$OSDISK --timeout=5
+
+# Disk partitioning information
+part biosboot --fstype=biosboot --size=1 --ondisk=$OSDISK
+part /boot/efi  --fstype="efi" --size=200 --ondisk=$OSDISK
+part /boot --fstype="xfs" --size=1024 --label=boot
+part pv.001 --fstype="lvmpv" --size=100 --grow --ondisk=$OSDISK
+part pv.002 --fstype="lvmpv" --size=100 --grow --ondisk=$DATADISK
+
+# Setup volume groups
+# -- OS --
+volgroup os --pesize=4096 pv.001
+
+# -- VMS --
+# NO VG FOR VMS
+
+#
+# Setup logical volumes
+# -- OS --
+logvol swap  --fstype="swap" --size=5120 --name=swap --vgname=os
+logvol /  --fstype="xfs" --size=204800 --label="root" --name=root --vgname=os
+logvol /home  --fstype="xfs" --size=102400 --label="home" --name=home --vgname=os
+
+# -- VMS --
+# NO LV FOR VMS
+
+
+EOF
+
+%end
+
+
+#auth --enableshadow --passalgo=sha512
+url --url=http://download.eng.rdu2.redhat.com/released/RHEL-[major_version]/[full_version]/BaseOS/x86_64/os/
+text
+keyboard --vckeymap=us --xlayouts='us'
+lang en_US.UTF-8
+# Root password
+rootpw --iscrypted [password_hash]
+timezone America/New_York --isUtc --ntpservers=10.10.167.254,infoblox-trust01.intranet.prod.int.phx2.redhat.com,clock1.rdu2.redhat.com,clock.bos.redhat.com,clock02.util.phx2.redhat.com,clock01.util.phx2.redhat.com
+
+
+%include /tmp/DISK2USE
+
+
+reboot
+
+
+      ]]></kickstart>
+      <watchdog panic="ignore"/>
+      <packages/>
+      <ks_appends/>
+      <repos/>
+      <distroRequires>
+        <and>
+          <distro_family op="=" value="RedHatEnterpriseLinux[major_version]"/>
+          <distro_variant op="=" value="BaseOS"/>
+          <distro_name op="=" value="RHEL-[full_version]"/>
+          <distro_arch op="=" value="x86_64"/>
+        </and>
+      </distroRequires>
+      <hostRequires force="[machine]"/>
+      <partitions/>
+      <task name="/distribution/check-install" role="STANDALONE"/>
+    </recipe>
+  </recipeSet>
+</job>
