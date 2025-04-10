@@ -10,6 +10,14 @@ parameters:
   value: quay.io/fedora/postgresql-15
 - name: SQL_EXECUTE_TAG
   value: "15"
+- name: SQL_EXECUTE_MEMORY_REQUEST
+  value: 256Mi
+- name: SQL_EXECUTE_MEMORY_LIMIT
+  value: 256Mi
+- name: SQL_EXECUTE_CPU_REQUEST
+  value: "1"
+- name: SQL_EXECUTE_CPU_LIMIT
+  value: "1"
 - name: SQL_EXECUTE_IMAGE_PULL_POLICY
   value: Always
 - name: QUERY
@@ -38,6 +46,13 @@ objects:
           imagePullPolicy: ${SQL_EXECUTE_IMAGE_PULL_POLICY}
           command:
           - /entrypoint.sh
+          resources:
+            limits:
+              memory: ${SQL_EXECUTE_MEMORY_LIMIT}
+              cpu: ${SQL_EXECUTE_CPU_LIMIT}
+            requests:
+              memory: ${SQL_EXECUTE_MEMORY_REQUEST}
+              cpu: ${SQL_EXECUTE_CPU_REQUEST}
           env:
           - name: DB_HOST
             valueFrom:
